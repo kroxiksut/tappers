@@ -44,6 +44,10 @@ esac
 
 case "${OS}" in
     windows*)
+        # `wintun-runtime` loads `wintun.dll` from the directory of the test executable
+        mkdir -p target/debug/deps
+        cp -f wintun.dll target/debug/deps/
+
         cargo test --all-targets -- --nocapture
 
         cargo test --all-targets --features wintun -- --nocapture
