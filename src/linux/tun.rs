@@ -599,9 +599,9 @@ impl Tun {
 
     #[inline]
     fn close_fd(fd: RawFd) {
-        unsafe {
-            debug_assert_eq!(libc::close(fd), 0);
-        }
+        // `debug_assert_eq!` is compiled out in release builds, so the call must stay outside it.
+        let res = unsafe { libc::close(fd) };
+        debug_assert_eq!(res, 0);
     }
 }
 
