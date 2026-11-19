@@ -25,7 +25,7 @@ use std::ptr::{self, NonNull};
 use std::{io, mem};
 
 use windows_sys::core::{BOOL, GUID, PCWSTR};
-use windows_sys::Win32::Foundation::HANDLE;
+use windows_sys::Win32::Foundation::{FreeLibrary, HANDLE};
 use windows_sys::Win32::NetworkManagement::Ndis::NET_LUID_LH;
 use windows_sys::Win32::Security::WinTrust::{
     WinVerifyTrust, WINTRUST_ACTION_GENERIC_VERIFY_V2, WINTRUST_DATA, WINTRUST_DATA_0,
@@ -255,6 +255,18 @@ impl Wintun {
         })
     }
 
+    // Takes the reference returned by LoadLibraryExW. Keep it for the lifetime of the
+    // resolved function pointers, or release it if there is no usable API to return.
+    unsafe fn from_module(lib: *mut libc::c_void) -> io::Result<Self> {
+        match Self::resolve_api(lib) {
+            Ok(api) => Ok(Self { api }),
+            Err(err) => {
+                FreeLibrary(lib);
+                Err(io::Error::new(io::ErrorKind::NotFound, err))
+            }
+        }
+    }
+
     /// Opens a new Wintun DLL.
     ///
     /// The DLL is searched for only in the directory of the running executable and in the System32
@@ -280,10 +292,7 @@ impl Wintun {
                 return Err(io::Error::last_os_error());
             }
 
-            let api =
-                Self::resolve_api(lib).map_err(|e| io::Error::new(io::ErrorKind::NotFound, e))?;
-
-            Ok(Self { api })
+            Self::from_module(lib)
         }
     }
 
@@ -334,10 +343,7 @@ impl Wintun {
 
             drop(file);
 
-            let api =
-                Self::resolve_api(lib).map_err(|e| io::Error::new(io::ErrorKind::NotFound, e))?;
-
-            Ok(Self { api })
+            Self::from_module(lib)
         }
     }
 

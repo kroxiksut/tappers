@@ -461,6 +461,30 @@ mod tests {
 
     #[cfg(feature = "wintun-runtime")]
     #[test]
+    fn missing_exports_release_library() {
+        use std::os::windows::ffi::OsStrExt;
+        use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+
+        let system =
+            std::path::PathBuf::from(std::env::var_os("SystemRoot").unwrap()).join("System32");
+        for name in ["winmm.dll", "cabinet.dll", "odbc32.dll"] {
+            let path = system.join(name);
+            let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+            if !path.is_file() || !unsafe { GetModuleHandleW(wide.as_ptr()) }.is_null() {
+                continue;
+            }
+            let err = Wintun::from_path(&path, false).err().unwrap();
+            // A missing export, not a missing DLL.
+            let cause = err.get_ref().unwrap().downcast_ref::<io::Error>().unwrap();
+            assert_eq!(cause.raw_os_error(), Some(127));
+            assert!(unsafe { GetModuleHandleW(wide.as_ptr()) }.is_null());
+            return;
+        }
+        panic!("no unloaded system DLL available for the missing-export test");
+    }
+
+    #[cfg(feature = "wintun-runtime")]
+    #[test]
     fn load_signed() {
         Wintun::from_path(&wintun_path(), true).unwrap();
     }
